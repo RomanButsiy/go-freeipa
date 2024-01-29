@@ -66,6 +66,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 
 	k5client "github.com/jcmturner/gokrb5/v8/client"
 	k5config "github.com/jcmturner/gokrb5/v8/config"
@@ -187,11 +188,18 @@ func (c *Client) login() error {
 		return c.loginWithKerberos()
 	}
 
-	data := url.Values{
-		"user":     []string{c.user},
-		"password": []string{c.pw},
+	form := url.Values{}
+	form.Add("user", c.user)
+	form.Add("password", c.pw)
+
+	req, e := http.NewRequest("POST", fmt.Sprintf("https://%v/ipa/session/login_password", c.host), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", fmt.Sprintf("https://%v/ipa/ui", c.host))
+	if e != nil {
+		return errors.WithMessage(e, "building login HTTP request")
 	}
-	res, e := c.hc.PostForm(fmt.Sprintf("https://%v/ipa/session/login_password", c.host), data)
+
+	res, e := c.hc.Do(req)
 	if e != nil {
 		return e
 	}
